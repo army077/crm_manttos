@@ -1,5 +1,5 @@
 import React from "react";
-import { useList, useUpdate } from "@refinedev/core";
+import { useList, useUpdate, useDelete } from "@refinedev/core";
 import {
   DndContext,
   closestCenter,
@@ -20,7 +20,9 @@ import {
   Badge,
   useTheme,
   styled,
+  IconButton,
 } from "@mui/material";
+import DeleteIcon from '@mui/icons-material/Delete';
 import { DraggableKanbanItem } from "./DraggableKanbanItem";
 
 type Etapa = "TODO" | "IN PROGRESS" | "IN REVIEW" | "DONE";
@@ -56,6 +58,7 @@ export const SalesPipelineKanban: React.FC = () => {
     pagination: { mode: "off" },
   });
   const { mutate } = useUpdate();
+  const { mutate: deleteMutate } = useDelete();
   const tareas = data?.data || [];
 
   const grouped = columnas.map((etapa) => ({
@@ -87,7 +90,22 @@ export const SalesPipelineKanban: React.FC = () => {
     <DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
       <Stack direction="row" spacing={2} alignItems="flex-start" p={1}>
         {grouped.map((col) => (
-          <KanbanColumn key={col.etapa} etapa={col.etapa} tareas={col.tareas} />
+          <KanbanColumn
+            key={col.etapa}
+            etapa={col.etapa}
+            tareas={col.tareas}
+            onDelete={(id) =>
+              deleteMutate({
+                resource: "sales-pipeline",
+                id,
+                mutationMode: "undoable",
+                successNotification: {
+                  type: "success",
+                  message: "Tarea eliminada",
+                },
+              })
+            }
+          />
         ))}
       </Stack>
     </DndContext>
@@ -97,13 +115,14 @@ export const SalesPipelineKanban: React.FC = () => {
 const KanbanColumn = ({
   etapa,
   tareas,
+  onDelete,
 }: {
   etapa: Tarea["etapa"];
   tareas: Tarea[];
+  onDelete: (id: number) => void;
 }) => {
   const { setNodeRef, isOver } = useDroppable({ id: etapa });
   const theme = useTheme();
-  
 
   return (
     <Card
@@ -140,7 +159,7 @@ const KanbanColumn = ({
           <Stack spacing={1}>
             {tareas.map((t) => (
               <DraggableKanbanItem key={t.id} id={t.id.toString()}>
-                <KanbanCard tarea={t} />
+                <KanbanCard tarea={t} onDelete={onDelete} />
               </DraggableKanbanItem>
             ))}
           </Stack>
@@ -150,7 +169,13 @@ const KanbanColumn = ({
   );
 };
 
-const KanbanCard = ({ tarea }: { tarea: Tarea }) => {
+const KanbanCard = ({
+  tarea,
+  onDelete,
+}: {
+  tarea: Tarea;
+  onDelete: (id: number) => void;
+}) => {
   const dueDate = tarea.fecha_vencimiento
     ? new Date(tarea.fecha_vencimiento)
     : null;
@@ -160,6 +185,7 @@ const KanbanCard = ({ tarea }: { tarea: Tarea }) => {
   return (
     <Box
       sx={{
+        position: 'relative',
         p: 2,
         backgroundColor: "#fff",
         borderRadius: 2,
@@ -171,6 +197,14 @@ const KanbanCard = ({ tarea }: { tarea: Tarea }) => {
       }}
       id={tarea.id.toString()}
     >
+      <IconButton
+        size="small"
+        onClick={() => onDelete(tarea.id)}
+        sx={{ position: 'absolute', top: 4, right: 4 }}
+      >
+        <DeleteIcon fontSize="small" />
+      </IconButton>
+
       <Typography variant="subtitle1" fontWeight="bold">
         {tarea.titulo}
       </Typography>
