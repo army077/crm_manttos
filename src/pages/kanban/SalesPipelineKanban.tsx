@@ -1,10 +1,13 @@
-import React from "react";
-import { useList, useUpdate, useDelete } from "@refinedev/core";
+import React, { useState } from "react";
+import { useList, useUpdate, useCreate } from "@refinedev/core";
 import {
   DndContext,
   closestCenter,
   DragEndEvent,
   useDroppable,
+  PointerSensor,
+  useSensor,
+  useSensors,
 } from "@dnd-kit/core";
 import {
   SortableContext,
@@ -18,66 +21,93 @@ import {
   Typography,
   Stack,
   Badge,
+  IconButton,
   useTheme,
   styled,
-  IconButton,
+  useMediaQuery,
+  Chip,
 } from "@mui/material";
-import DeleteIcon from '@mui/icons-material/Delete';
 import { DraggableKanbanItem } from "./DraggableKanbanItem";
+import { TaskDetailsModal } from "./TaskDetailModel";
+import AddIcon from "@mui/icons-material/Add";
 
-type Etapa = "TODO" | "IN PROGRESS" | "IN REVIEW" | "DONE";
+type Etapa = "DONE" | "NEGOCIACION" | "APARTADO" | "PAGADO" | "FINALIZADO";
 
-type Tarea = {
+interface Tarea {
   id: number;
   titulo: string;
   descripcion: string;
   etapa: Etapa;
   fecha_vencimiento?: string;
   fecha_creacion?: string;
-};
+  etiquetas?: string[];
+  prioridad?: "alta" | "media" | "baja";
+  checklist?: { id: number; texto: string; completado: boolean }[];
+}
 
-const columnas: Etapa[] = ["TODO", "IN PROGRESS", "IN REVIEW", "DONE"];
+const columnas: Etapa[] = ["DONE", "NEGOCIACION", "APARTADO", "PAGADO", "FINALIZADO"];
 
-// Colores por etapa
 const etapaColors: Record<Etapa, string> = {
-  TODO: "#f0f0f0",
-  "IN PROGRESS": "#e3f2fd",
-  "IN REVIEW": "#fff3e0",
-  DONE: "#e8f5e9",
+  DONE: "#f0f0f0",
+  NEGOCIACION: "#e3f2fd",
+  APARTADO: "#fff3e0",
+  PAGADO: "#e8f5e9",
+  FINALIZADO: "#e0f7fa",
 };
 
-const ScrollableContent = styled(CardContent)({
+const etapaTitles: Record<Etapa, string> = {
+  DONE: "DONE",
+  NEGOCIACION: "NEGOCIACION",
+  APARTADO: "APARTADO",
+  PAGADO: "PAGADO O CON OC (CREDITO)",
+  FINALIZADO: "FINALIZADO",
+};
+
+const etapaEtiquetas: Record<Etapa, string[]> = {
+  DONE: ["C/Pendientes", "Sin fecha"],
+  NEGOCIACION: ["Contactado", "Cotizado", "Aceptado", "Sin fecha"],
+  APARTADO: ["Aceptado", "C/Fecha", "Reagendado", "Cancelado"],
+  PAGADO: ["Confirmado", "Sin confirmar", "Reagendado"],
+  FINALIZADO: ["C/Pendientes", "S/Pendientes"],
+};
+
+const ScrollableContent = styled(CardContent)(({ theme }) => ({
   maxHeight: 500,
   overflowY: "auto",
-  padding: "8px",
-});
+  padding: theme.spacing(1),
+  minHeight: 100, // Ensure columns are visible even when empty
+}));
 
 export const SalesPipelineKanban: React.FC = () => {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
   const { data } = useList<Tarea>({
     resource: "sales-pipeline",
     pagination: { mode: "off" },
   });
-  const { mutate } = useUpdate();
-  const { mutate: deleteMutate } = useDelete();
+  const { mutate: updateTask } = useUpdate();
+  const { mutate: createTask } = useCreate();
   const tareas = data?.data || [];
 
-  const grouped = columnas.map((etapa) => ({
-    etapa,
-    tareas: tareas.filter((t) => t.etapa === etapa),
-  }));
+  const [selectedTask, setSelectedTask] = useState<Tarea | null>(null);
+  const [modalOpen, setModalOpen] = useState(false);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
+  );
 
   const handleDragEnd = (event: DragEndEvent) => {
     const taskId = parseInt(event.active.id as string, 10);
-    const destino = event.over?.id as string;
-    if (!destino || !columnas.includes(destino as Etapa)) return;
+    const destino = event.over?.id as Etapa;
+    if (!destino || !columnas.includes(destino)) return;
 
     const tarea = tareas.find((t) => t.id === taskId);
     if (!tarea || tarea.etapa === destino) return;
 
-    mutate({
+    updateTask({
       resource: "sales-pipeline",
       id: tarea.id,
-      values: { ...tarea, etapa: destino as Etapa },
+      values: { ...tarea, etapa: destino },
       successNotification: {
         type: "success",
         message: "Tarea actualizada",
@@ -86,40 +116,138 @@ export const SalesPipelineKanban: React.FC = () => {
     });
   };
 
+  const handleOpenDetails = (tarea: Tarea) => {
+    setSelectedTask(tarea);
+    setModalOpen(true);
+  };
+
+  const handleCloseDetails = () => {
+    setModalOpen(false);
+    setSelectedTask(null);
+  };
+
+  const handleUpdateTask = (updatedTask: Tarea) => {
+    updateTask({
+      resource: "sales-pipeline",
+      id: updatedTask.id,
+      values: updatedTask,
+      successNotification: {
+        type: "success",
+        message: "Tarea actualizada",
+      },
+    });
+  };
+
+  const handleDeleteTask = (id: number) => {
+    updateTask({
+      resource: "sales-pipeline",
+      id,
+      values: { ...tareas.find(t => t.id === id), deleted: true },
+      successNotification: {
+        type: "success",
+        message: "Tarea eliminada",
+      },
+      mutationMode: "pessimistic"
+    });
+    handleCloseDetails();
+  };
+
+  const handleAddTask = (etapa: Etapa) => {
+    const titulo = window.prompt(`Título nueva tarea en "${etapa}":`);
+    if (!titulo?.trim()) return;
+    const descripcion = window.prompt("Descripción (opcional):") || "";
+    
+    createTask({
+      resource: "sales-pipeline",
+      values: {
+        titulo,
+        descripcion,
+        etapa,
+        etiquetas: [],
+        checklist: [],
+        prioridad: "media",
+        fecha_creacion: new Date().toISOString(),
+      },
+      successNotification: {
+        type: "success",
+        message: "Tarea creada",
+      },
+    });
+  };
+
+  const getTagColor = (tag: string) => {
+    const tagColors: Record<string, string> = {
+      "C/Pendientes": "#ff5252",
+      "Sin fecha": "#9e9e9e",
+      "Contactado": "#4caf50",
+      "Cotizado": "#2196f3",
+      "Aceptado": "#8bc34a",
+      "C/Fecha": "#ff9800",
+      "Reagendado": "#ff5722",
+      "Cancelado": "#f44336",
+      "Confirmado": "#4caf50",
+      "Sin confirmar": "#ff9800",
+      "S/Pendientes": "#cddc39"
+    };
+    return tagColors[tag] || "#9e9e9e";
+  };
+
   return (
-    <DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-      <Stack direction="row" spacing={2} alignItems="flex-start" p={1}>
-        {grouped.map((col) => (
-          <KanbanColumn
-            key={col.etapa}
-            etapa={col.etapa}
-            tareas={col.tareas}
-            onDelete={(id) =>
-              deleteMutate({
-                resource: "sales-pipeline",
-                id,
-                mutationMode: "undoable",
-                successNotification: {
-                  type: "success",
-                  message: "Tarea eliminada",
-                },
-              })
-            }
-          />
-        ))}
-      </Stack>
-    </DndContext>
+    <>
+      <Box sx={{ p: 1 }}>
+        <Stack
+          direction={isMobile ? "column" : "row"}
+          spacing={2}
+          alignItems="flex-start"
+        >
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
+          >
+            {columnas.map((etapa) => {
+              const columnTasks = tareas.filter((t) => t.etapa === etapa);
+              return (
+                <KanbanColumn
+                  key={etapa}
+                  etapa={etapa}
+                  tareas={columnTasks}
+                  onCardClick={handleOpenDetails}
+                  onAddTask={() => handleAddTask(etapa)}
+                  mobile={isMobile}
+                />
+              );
+            })}
+          </DndContext>
+        </Stack>
+      </Box>
+
+      {selectedTask && (
+        <TaskDetailsModal
+          open={modalOpen}
+          onClose={handleCloseDetails}
+          tarea={selectedTask}
+          onDelete={handleDeleteTask}
+          availableEtapas={columnas}
+          availableTags={etapaEtiquetas[selectedTask.etapa] || []}
+        />
+      )}
+    </>
   );
 };
 
 const KanbanColumn = ({
   etapa,
   tareas,
-  onDelete,
+  onCardClick,
+  onAddTask,
+  mobile,
 }: {
-  etapa: Tarea["etapa"];
+  etapa: Etapa;
   tareas: Tarea[];
-  onDelete: (id: number) => void;
+  onCardClick: (t: Tarea) => void;
+  onAddTask: () => void;
+  mobile: boolean;
 }) => {
   const { setNodeRef, isOver } = useDroppable({ id: etapa });
   const theme = useTheme();
@@ -128,38 +256,37 @@ const KanbanColumn = ({
     <Card
       ref={setNodeRef}
       sx={{
-        width: 300,
+        width: mobile ? "90vw" : 300,
         backgroundColor: etapaColors[etapa],
         border: isOver
           ? `2px dashed ${theme.palette.primary.main}`
           : "2px dashed transparent",
-        transition: "all 0.2s",
       }}
       elevation={isOver ? 6 : 2}
     >
       <CardHeader
         title={
           <Stack direction="row" alignItems="center" spacing={1}>
-            <Typography variant="h6">{etapa}</Typography>
-            <Badge
-            style={{ marginLeft: '30%' }}
-              badgeContent={tareas.length}
-              color={tareas.length > 0 ? "primary" : "default"}
-            />
+            <Typography variant="h6">{etapaTitles[etapa]}</Typography>
+            <Badge badgeContent={tareas.length} color="primary" />
           </Stack>
+        }
+        action={
+          <IconButton size="small" onClick={onAddTask}>
+            <AddIcon />
+          </IconButton>
         }
         sx={{ pb: 0 }}
       />
       <ScrollableContent>
         <SortableContext
-          id={etapa}
           items={tareas.map((t) => t.id.toString())}
           strategy={verticalListSortingStrategy}
         >
           <Stack spacing={1}>
             {tareas.map((t) => (
               <DraggableKanbanItem key={t.id} id={t.id.toString()}>
-                <KanbanCard tarea={t} onDelete={onDelete} />
+                <KanbanCard tarea={t} onClick={() => onCardClick(t)} />
               </DraggableKanbanItem>
             ))}
           </Stack>
@@ -171,40 +298,31 @@ const KanbanColumn = ({
 
 const KanbanCard = ({
   tarea,
-  onDelete,
+  onClick,
 }: {
   tarea: Tarea;
-  onDelete: (id: number) => void;
+  onClick: () => void;
 }) => {
   const dueDate = tarea.fecha_vencimiento
     ? new Date(tarea.fecha_vencimiento)
     : null;
   const isOverdue =
-    dueDate && dueDate.getTime() < Date.now() && tarea.etapa !== "DONE";
+    dueDate && dueDate.getTime() < Date.now() && tarea.etapa !== "FINALIZADO";
 
   return (
     <Box
       sx={{
-        position: 'relative',
         p: 2,
         backgroundColor: "#fff",
         borderRadius: 2,
         boxShadow: 1,
-        cursor: "grab",
+        cursor: "pointer",
         "&:hover": { boxShadow: 4 },
         opacity: isOverdue ? 0.7 : 1,
         borderLeft: isOverdue ? "4px solid red" : "4px solid transparent",
       }}
-      id={tarea.id.toString()}
+      onClick={onClick}
     >
-      <IconButton
-        size="small"
-        onClick={() => onDelete(tarea.id)}
-        sx={{ position: 'absolute', top: 4, right: 4 }}
-      >
-        <DeleteIcon fontSize="small" />
-      </IconButton>
-
       <Typography variant="subtitle1" fontWeight="bold">
         {tarea.titulo}
       </Typography>
@@ -224,6 +342,40 @@ const KanbanCard = ({
           {isOverdue && " • Atrasada"}
         </Typography>
       )}
+      {tarea.etiquetas && tarea.etiquetas.length > 0 && (
+        <Box sx={{ mt: 1, display: "flex", gap: 0.5, flexWrap: "wrap" }}>
+          {tarea.etiquetas.map((etiqueta) => (
+            <Chip
+              key={etiqueta}
+              label={etiqueta}
+              size="small"
+              sx={{
+                fontSize: '0.65rem',
+                height: 20,
+                backgroundColor: getTagColor(etiqueta),
+                color: 'white'
+              }}
+            />
+          ))}
+        </Box>
+      )}
     </Box>
   );
 };
+
+function getTagColor(tag: string): string {
+  const tagColors: Record<string, string> = {
+    "C/Pendientes": "#ff5252",
+    "Sin fecha": "#9e9e9e",
+    "Contactado": "#4caf50",
+    "Cotizado": "#2196f3",
+    "Aceptado": "#8bc34a",
+    "C/Fecha": "#ff9800",
+    "Reagendado": "#ff5722",
+    "Cancelado": "#f44336",
+    "Confirmado": "#4caf50",
+    "Sin confirmar": "#ff9800",
+    "S/Pendientes": "#cddc39"
+  };
+  return tagColors[tag] || "#9e9e9e";
+}
