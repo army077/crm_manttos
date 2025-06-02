@@ -19,9 +19,7 @@ import {
   MenuItem,
   Autocomplete,
 } from "@mui/material";
-import {
-  Delete as DeleteIcon,
-} from "@mui/icons-material";
+import { Delete as DeleteIcon } from "@mui/icons-material";
 
 interface TaskDetailsModalProps {
   open: boolean;
@@ -42,42 +40,10 @@ export const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({
   availableEtapas,
   availableTags,
 }) => {
-  const { mutate: updateTask } = useUpdate();
-  // Inicializa etiquetas siempre como array aunque venga undefined
   const [editedTask, setEditedTask] = React.useState<Tarea>({
     ...tarea,
     etiquetas: tarea.etiquetas ?? [],
-    checklist: tarea.checklist ?? [],
-    prioridad: tarea.prioridad || "media",
   });
-  const [newTagInput, setNewTagInput] = React.useState("");
-
-  const updateTagsInDatabase = (updatedTags: string[]) => {
-    updateTask({
-      resource: "sales-pipeline",
-      id: editedTask.id,
-      values: { ...editedTask, etiquetas: updatedTags },
-      successNotification: {
-        type: "success",
-        message: "Etiquetas actualizadas",
-      },
-    });
-    onUpdate({ ...editedTask, etiquetas: updatedTags });
-  };
-
-  const handleAddTag = (newTag: string) => {
-    if (newTag.trim() && !editedTask.etiquetas!.includes(newTag)) {
-      const updatedTags = [...editedTask.etiquetas!, newTag];
-      setEditedTask(prev => ({ ...prev, etiquetas: updatedTags }));
-      updateTagsInDatabase(updatedTags);
-    }
-  };
-
-  const handleRemoveTag = (tagToRemove: string) => {
-    const updatedTags = (editedTask.etiquetas ?? []).filter(tag => tag !== tagToRemove);
-    setEditedTask(prev => ({ ...prev, etiquetas: updatedTags }));
-    updateTagsInDatabase(updatedTags);
-  };
 
   const handleSave = () => {
     onUpdate(editedTask);
@@ -96,14 +62,7 @@ export const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({
       "Cancelado": "#f44336",
       "Confirmado": "#4caf50",
       "Sin confirmar": "#ff9800",
-      "Pagado": "#4caf50",
-      "No pagado": "#f44336",
-      "Precio alto": "#9c27b0",
-      "Falta de atención": "#607d8b",
-      "No contestó": "#795548",
-      "No usa la maquina": "#9e9e9e",
-      "Maquina revendida": "#673ab7",
-      "S/Pendientes": "#cddc39",
+      "S/Pendientes": "#cddc39"
     };
     return tagColors[tag] || "#9e9e9e";
   };
@@ -161,10 +120,9 @@ export const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({
                 multiple
                 freeSolo
                 options={availableTags}
-                value={editedTask.etiquetas ?? []}
+                value={editedTask.etiquetas}
                 onChange={(_, newValue) => {
                   setEditedTask({ ...editedTask, etiquetas: newValue });
-                  updateTagsInDatabase(newValue);
                 }}
                 renderTags={(value, getTagProps) =>
                   value.map((option, index) => (
@@ -173,7 +131,10 @@ export const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({
                       key={option}
                       label={option}
                       size="small"
-                      onDelete={() => handleRemoveTag(option)}
+                      onDelete={() => {
+                        const newTags = editedTask.etiquetas?.filter(t => t !== option);
+                        setEditedTask(prev => ({ ...prev, etiquetas: newTags }));
+                      }}
                       sx={{
                         backgroundColor: getTagColor(option),
                         color: "white",
@@ -186,15 +147,6 @@ export const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({
                   <TextField
                     {...params}
                     placeholder="Añadir etiquetas..."
-                    value={newTagInput}
-                    onChange={(e) => setNewTagInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && newTagInput.trim()) {
-                        handleAddTag(newTagInput);
-                        setNewTagInput("");
-                        e.preventDefault();
-                      }
-                    }}
                   />
                 )}
               />

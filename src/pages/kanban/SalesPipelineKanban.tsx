@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import { useList, useUpdate, useCreate } from "@refinedev/core";
 import type { Tarea, Etapa } from "../../entidades/tarea";
-
 import {
   DndContext,
   closestCenter,
@@ -66,7 +65,7 @@ const ScrollableContent = styled(CardContent)(({ theme }) => ({
 export const SalesPipelineKanban: React.FC = () => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
-  const { data } = useList<Tarea>({
+  const { data, refetch } = useList<Tarea>({
     resource: "sales-pipeline",
     pagination: { mode: "off" },
   });
@@ -120,6 +119,10 @@ export const SalesPipelineKanban: React.FC = () => {
         type: "success",
         message: "Tarea actualizada",
       },
+    }, {
+      onSuccess: () => {
+        refetch(); // Refresca la lista tras guardar
+      }
     });
   };
 
@@ -213,7 +216,7 @@ export const SalesPipelineKanban: React.FC = () => {
           onClose={handleCloseDetails}
           tarea={{
             ...selectedTask,
-            etiquetas: selectedTask.etiquetas ?? [], // <-- SIEMPRE array, nunca undefined para el modal
+            etiquetas: selectedTask.etiquetas ?? [],
           }}
           onUpdate={handleUpdateTask}
           onDelete={handleDeleteTask}
