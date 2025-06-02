@@ -1,5 +1,7 @@
 import React, { useState } from "react";
 import { useList, useUpdate, useCreate } from "@refinedev/core";
+import type { Tarea, Etapa } from "../../entidades/tarea";
+
 import {
   DndContext,
   closestCenter,
@@ -9,10 +11,7 @@ import {
   useSensor,
   useSensors,
 } from "@dnd-kit/core";
-import {
-  SortableContext,
-  verticalListSortingStrategy,
-} from "@dnd-kit/sortable";
+import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import {
   Box,
   Card,
@@ -31,24 +30,10 @@ import { DraggableKanbanItem } from "./DraggableKanbanItem";
 import { TaskDetailsModal } from "./TaskDetailModel";
 import AddIcon from "@mui/icons-material/Add";
 
-type Etapa = "DONE" | "NEGOCIACION" | "APARTADO" | "PAGADO" | "FINALIZADO";
-
-interface Tarea {
-  id: number;
-  titulo: string;
-  descripcion: string;
-  etapa: Etapa;
-  fecha_vencimiento?: string;
-  fecha_creacion?: string;
-  etiquetas?: string[];
-  prioridad?: "alta" | "media" | "baja";
-  checklist?: { id: number; texto: string; completado: boolean }[];
-}
-
-const columnas: Etapa[] = ["DONE", "NEGOCIACION", "APARTADO", "PAGADO", "FINALIZADO"];
+const columnas: Etapa[] = ["INBOX", "NEGOCIACION", "APARTADO", "PAGADO", "FINALIZADO"];
 
 const etapaColors: Record<Etapa, string> = {
-  DONE: "#f0f0f0",
+  INBOX: "#f0f0f0",
   NEGOCIACION: "#e3f2fd",
   APARTADO: "#fff3e0",
   PAGADO: "#e8f5e9",
@@ -56,7 +41,7 @@ const etapaColors: Record<Etapa, string> = {
 };
 
 const etapaTitles: Record<Etapa, string> = {
-  DONE: "DONE",
+  INBOX: "INBOX",
   NEGOCIACION: "NEGOCIACION",
   APARTADO: "APARTADO",
   PAGADO: "PAGADO O CON OC (CREDITO)",
@@ -64,7 +49,7 @@ const etapaTitles: Record<Etapa, string> = {
 };
 
 const etapaEtiquetas: Record<Etapa, string[]> = {
-  DONE: ["C/Pendientes", "Sin fecha"],
+  INBOX: ["C/Pendientes", "Sin fecha"],
   NEGOCIACION: ["Contactado", "Cotizado", "Aceptado", "Sin fecha"],
   APARTADO: ["Aceptado", "C/Fecha", "Reagendado", "Cancelado"],
   PAGADO: ["Confirmado", "Sin confirmar", "Reagendado"],
@@ -75,7 +60,7 @@ const ScrollableContent = styled(CardContent)(({ theme }) => ({
   maxHeight: 500,
   overflowY: "auto",
   padding: theme.spacing(1),
-  minHeight: 100, // Ensure columns are visible even when empty
+  minHeight: 100,
 }));
 
 export const SalesPipelineKanban: React.FC = () => {
@@ -226,7 +211,11 @@ export const SalesPipelineKanban: React.FC = () => {
         <TaskDetailsModal
           open={modalOpen}
           onClose={handleCloseDetails}
-          tarea={selectedTask}
+          tarea={{
+            ...selectedTask,
+            etiquetas: selectedTask.etiquetas ?? [], // <-- SIEMPRE array, nunca undefined para el modal
+          }}
+          onUpdate={handleUpdateTask}
           onDelete={handleDeleteTask}
           availableEtapas={columnas}
           availableTags={etapaEtiquetas[selectedTask.etapa] || []}
@@ -342,9 +331,9 @@ const KanbanCard = ({
           {isOverdue && " • Atrasada"}
         </Typography>
       )}
-      {tarea.etiquetas && tarea.etiquetas.length > 0 && (
+      {(tarea.etiquetas ?? []).length > 0 && (
         <Box sx={{ mt: 1, display: "flex", gap: 0.5, flexWrap: "wrap" }}>
-          {tarea.etiquetas.map((etiqueta) => (
+          {(tarea.etiquetas ?? []).map((etiqueta) => (
             <Chip
               key={etiqueta}
               label={etiqueta}
