@@ -27,6 +27,7 @@ import {
 } from "@mui/material";
 import { DraggableKanbanItem } from "./DraggableKanbanItem";
 import { TaskDetailsModal } from "./TaskDetailModel";
+import { CreateTaskDialog } from "./CreateTaskDialog";
 import AddIcon from "@mui/icons-material/Add";
 
 const columnas: Etapa[] = ["INBOX", "NEGOCIACION", "APARTADO", "PAGADO", "FINALIZADO"];
@@ -72,6 +73,10 @@ export const SalesPipelineKanban: React.FC = () => {
   const { mutate: updateTask } = useUpdate();
   const { mutate: createTask } = useCreate();
   const tareas = data?.data || [];
+
+  // Estado para el diálogo de creación
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [etapaToCreate, setEtapaToCreate] = useState<Etapa>("INBOX");
 
   const [selectedTask, setSelectedTask] = useState<Tarea | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
@@ -140,18 +145,30 @@ export const SalesPipelineKanban: React.FC = () => {
     handleCloseDetails();
   };
 
+  // -------- MODAL BONITO --------
   const handleAddTask = (etapa: Etapa) => {
-    const titulo = window.prompt(`Título nueva tarea en "${etapa}":`);
-    if (!titulo?.trim()) return;
-    const descripcion = window.prompt("Descripción (opcional):") || "";
-    
+    setEtapaToCreate(etapa);
+    setCreateDialogOpen(true);
+  };
+
+  const handleCreateTask = ({
+    titulo,
+    descripcion,
+    etapa,
+    etiquetas,
+  }: {
+    titulo: string;
+    descripcion: string;
+    etapa: Etapa;
+    etiquetas: string[];
+  }) => {
     createTask({
       resource: "sales-pipeline",
       values: {
         titulo,
         descripcion,
         etapa,
-        etiquetas: [],
+        etiquetas,
         checklist: [],
         prioridad: "media",
         fecha_creacion: new Date().toISOString(),
@@ -162,6 +179,8 @@ export const SalesPipelineKanban: React.FC = () => {
       },
     });
   };
+
+  // ---------------------------------
 
   const getTagColor = (tag: string) => {
     const tagColors: Record<string, string> = {
@@ -201,7 +220,7 @@ export const SalesPipelineKanban: React.FC = () => {
                   etapa={etapa}
                   tareas={columnTasks}
                   onCardClick={handleOpenDetails}
-                  onAddTask={() => handleAddTask(etapa)}
+                  onAddTask={handleAddTask}
                   mobile={isMobile}
                 />
               );
@@ -209,6 +228,16 @@ export const SalesPipelineKanban: React.FC = () => {
           </DndContext>
         </Stack>
       </Box>
+
+      {/* MODAL DE CREACIÓN */}
+      <CreateTaskDialog
+        open={createDialogOpen}
+        onClose={() => setCreateDialogOpen(false)}
+        onCreate={handleCreateTask}
+        defaultEtapa={etapaToCreate}
+        availableEtapas={columnas}
+        availableTags={Object.values(etapaEtiquetas).flat()}
+      />
 
       {selectedTask && (
         <TaskDetailsModal
@@ -238,7 +267,7 @@ const KanbanColumn = ({
   etapa: Etapa;
   tareas: Tarea[];
   onCardClick: (t: Tarea) => void;
-  onAddTask: () => void;
+  onAddTask: (etapa: Etapa) => void;
   mobile: boolean;
 }) => {
   const { setNodeRef, isOver } = useDroppable({ id: etapa });
@@ -264,7 +293,7 @@ const KanbanColumn = ({
           </Stack>
         }
         action={
-          <IconButton size="small" onClick={onAddTask}>
+          <IconButton size="small" onClick={() => onAddTask(etapa)}>
             <AddIcon />
           </IconButton>
         }
