@@ -13,10 +13,9 @@ export interface Tarea {
   titulo: string;
   descripcion: string;
   etapa: Etapa;
+  etiquetas?: string[]; // Permite undefined
   fecha_vencimiento?: string;
   fecha_creacion?: string;
-  etiquetas: string[];
-  prioridad: Prioridad;
-  checklist: ChecklistItem[];
-  deleted?: boolean;
+  prioridad?: "alta" | "media" | "baja";
+  checklist?: { id: number; texto: string; completado: boolean }[];
 }
