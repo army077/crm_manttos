@@ -24,28 +24,35 @@ import {
   styled,
   useMediaQuery,
   Chip,
+  Tooltip,
+  Divider,
 } from "@mui/material";
 import { DraggableKanbanItem } from "./DraggableKanbanItem";
 import { TaskDetailsModal } from "./TaskDetailModel";
 import { CreateTaskDialog } from "./CreateTaskDialog";
 import AddIcon from "@mui/icons-material/Add";
+import MoreHorizIcon from "@mui/icons-material/MoreHoriz";
 
-const columnas: Etapa[] = ["INBOX", "NEGOCIACION", "APARTADO", "PAGADO", "FINALIZADO"];
+const columnas: Etapa[] = ["INBOX", "NEGOCIACION", "APARTADO", "PAGADO", "FINALIZADO", "STANDBY", "DESCARTADO"];
 
 const etapaColors: Record<Etapa, string> = {
-  INBOX: "#f0f0f0",
+  INBOX: "#f5f5f5",
   NEGOCIACION: "#e3f2fd",
-  APARTADO: "#fff3e0",
+  APARTADO: "#fff8e1",
   PAGADO: "#e8f5e9",
   FINALIZADO: "#e0f7fa",
+  STANDBY: "#f3e5f5",
+  DESCARTADO: "#ffebee",
 };
 
 const etapaTitles: Record<Etapa, string> = {
   INBOX: "INBOX",
-  NEGOCIACION: "NEGOCIACION",
+  NEGOCIACION: "NEGOCIACIÓN",
   APARTADO: "APARTADO",
-  PAGADO: "PAGADO O CON OC (CREDITO)",
+  PAGADO: "PAGADO",
   FINALIZADO: "FINALIZADO",
+  STANDBY: "STANDBY",
+  DESCARTADO: "DESCARTADO",
 };
 
 const etapaEtiquetas: Record<Etapa, string[]> = {
@@ -54,18 +61,37 @@ const etapaEtiquetas: Record<Etapa, string[]> = {
   APARTADO: ["Aceptado", "C/Fecha", "Reagendado", "Cancelado"],
   PAGADO: ["Confirmado", "Sin confirmar", "Reagendado"],
   FINALIZADO: ["C/Pendientes", "S/Pendientes"],
+  STANDBY: ["Pagado", "No pagado"],
+  DESCARTADO: ["Precio alto", "Máquina revendida", "No contestó", "No usa la máquina", "Inconforme"],
 };
 
 const ScrollableContent = styled(CardContent)(({ theme }) => ({
-  maxHeight: 500,
+  maxHeight: "calc(100vh - 200px)",
   overflowY: "auto",
   padding: theme.spacing(1),
   minHeight: 100,
+  "&::-webkit-scrollbar": {
+    width: 6,
+  },
+  "&::-webkit-scrollbar-track": {
+    background: theme.palette.grey[200],
+    borderRadius: 3,
+  },
+  "&::-webkit-scrollbar-thumb": {
+    background: theme.palette.grey[400],
+    borderRadius: 3,
+  },
+}));
+
+const ColumnHeader = styled(CardHeader)(({ theme }) => ({
+  backgroundColor: theme.palette.background.paper,
+  borderBottom: `1px solid ${theme.palette.divider}`,
+  padding: theme.spacing(1, 2),
 }));
 
 export const SalesPipelineKanban: React.FC = () => {
   const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
+  const isMobile = useMediaQuery(theme.breakpoints.down("md"));
   const { data, refetch } = useList<Tarea>({
     resource: "sales-pipeline",
     pagination: { mode: "off" },
@@ -74,10 +100,8 @@ export const SalesPipelineKanban: React.FC = () => {
   const { mutate: createTask } = useCreate();
   const tareas = data?.data || [];
 
-  // Estado para el diálogo de creación
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [etapaToCreate, setEtapaToCreate] = useState<Etapa>("INBOX");
-
   const [selectedTask, setSelectedTask] = useState<Tarea | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
 
@@ -126,7 +150,7 @@ export const SalesPipelineKanban: React.FC = () => {
       },
     }, {
       onSuccess: () => {
-        refetch(); // Refresca la lista tras guardar
+        refetch();
       }
     });
   };
@@ -145,7 +169,6 @@ export const SalesPipelineKanban: React.FC = () => {
     handleCloseDetails();
   };
 
-  // -------- MODAL BONITO --------
   const handleAddTask = (etapa: Etapa) => {
     setEtapaToCreate(etapa);
     setCreateDialogOpen(true);
@@ -180,37 +203,23 @@ export const SalesPipelineKanban: React.FC = () => {
     });
   };
 
-  // ---------------------------------
-
-  const getTagColor = (tag: string) => {
-    const tagColors: Record<string, string> = {
-      "C/Pendientes": "#ff5252",
-      "Sin fecha": "#9e9e9e",
-      "Contactado": "#4caf50",
-      "Cotizado": "#2196f3",
-      "Aceptado": "#8bc34a",
-      "C/Fecha": "#ff9800",
-      "Reagendado": "#ff5722",
-      "Cancelado": "#f44336",
-      "Confirmado": "#4caf50",
-      "Sin confirmar": "#ff9800",
-      "S/Pendientes": "#cddc39"
-    };
-    return tagColors[tag] || "#9e9e9e";
-  };
-
   return (
-    <>
-      <Box sx={{ p: 1 }}>
-        <Stack
-          direction={isMobile ? "column" : "row"}
-          spacing={2}
-          alignItems="flex-start"
+    <Box sx={{ p: 2, height: "100%" }}>
+      <Typography variant="h5" gutterBottom sx={{ fontWeight: 600, mb: 3 }}>
+        Sales Pipeline
+      </Typography>
+      
+      <Box sx={{ overflowX: "auto", pb: 2 }}>
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleDragEnd}
         >
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            onDragEnd={handleDragEnd}
+          <Stack
+            direction={isMobile ? "column" : "row"}
+            spacing={2}
+            alignItems="flex-start"
+            sx={{ minWidth: isMobile ? "100%" : "max-content" }}
           >
             {columnas.map((etapa) => {
               const columnTasks = tareas.filter((t) => t.etapa === etapa);
@@ -225,11 +234,10 @@ export const SalesPipelineKanban: React.FC = () => {
                 />
               );
             })}
-          </DndContext>
-        </Stack>
+          </Stack>
+        </DndContext>
       </Box>
 
-      {/* MODAL DE CREACIÓN */}
       <CreateTaskDialog
         open={createDialogOpen}
         onClose={() => setCreateDialogOpen(false)}
@@ -253,7 +261,7 @@ export const SalesPipelineKanban: React.FC = () => {
           availableTags={etapaEtiquetas[selectedTask.etapa] || []}
         />
       )}
-    </>
+    </Box>
   );
 };
 
@@ -277,39 +285,82 @@ const KanbanColumn = ({
     <Card
       ref={setNodeRef}
       sx={{
-        width: mobile ? "90vw" : 300,
-        backgroundColor: etapaColors[etapa],
+        width: mobile ? "100%" : 320,
+        backgroundColor: theme.palette.background.default,
         border: isOver
           ? `2px dashed ${theme.palette.primary.main}`
-          : "2px dashed transparent",
+          : `1px solid ${theme.palette.divider}`,
+        borderRadius: 2,
+        display: "flex",
+        flexDirection: "column",
+        height: "100%",
       }}
-      elevation={isOver ? 6 : 2}
+      elevation={isOver ? 6 : 0}
     >
-      <CardHeader
+      <ColumnHeader
         title={
           <Stack direction="row" alignItems="center" spacing={1}>
-            <Typography variant="h6">{etapaTitles[etapa]}</Typography>
-            <Badge badgeContent={tareas.length} color="primary" />
+            <Typography variant="subtitle1" fontWeight={600}>
+              {etapaTitles[etapa]}
+            </Typography>
+            <Badge 
+              badgeContent={tareas.length} 
+              color="default"
+              sx={{
+                "& .MuiBadge-badge": {
+                  backgroundColor: etapaColors[etapa],
+                  color: theme.palette.getContrastText(etapaColors[etapa]),
+                }
+              }}
+            />
           </Stack>
         }
         action={
-          <IconButton size="small" onClick={() => onAddTask(etapa)}>
-            <AddIcon />
-          </IconButton>
+          <Tooltip title="Añadir tarea">
+            <IconButton 
+              size="small" 
+              onClick={() => onAddTask(etapa)}
+              sx={{
+                backgroundColor: etapaColors[etapa],
+                "&:hover": {
+                  backgroundColor: theme.palette.action.hover,
+                }
+              }}
+            >
+              <AddIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
         }
-        sx={{ pb: 0 }}
+        sx={{
+          backgroundColor: etapaColors[etapa],
+          transition: "background-color 0.2s ease",
+        }}
       />
+      <Divider />
       <ScrollableContent>
         <SortableContext
           items={tareas.map((t) => t.id.toString())}
           strategy={verticalListSortingStrategy}
         >
-          <Stack spacing={1}>
+          <Stack spacing={1.5}>
             {tareas.map((t) => (
               <DraggableKanbanItem key={t.id} id={t.id.toString()}>
                 <KanbanCard tarea={t} onClick={() => onCardClick(t)} />
               </DraggableKanbanItem>
             ))}
+            {tareas.length === 0 && (
+              <Box
+                sx={{
+                  p: 2,
+                  textAlign: "center",
+                  color: theme.palette.text.secondary,
+                  border: `1px dashed ${theme.palette.divider}`,
+                  borderRadius: 1,
+                }}
+              >
+                <Typography variant="body2">No hay tareas</Typography>
+              </Box>
+            )}
           </Stack>
         </SortableContext>
       </ScrollableContent>
@@ -324,6 +375,7 @@ const KanbanCard = ({
   tarea: Tarea;
   onClick: () => void;
 }) => {
+  const theme = useTheme();
   const dueDate = tarea.fecha_vencimiento
     ? new Date(tarea.fecha_vencimiento)
     : null;
@@ -334,50 +386,87 @@ const KanbanCard = ({
     <Box
       sx={{
         p: 2,
-        backgroundColor: "#fff",
-        borderRadius: 2,
-        boxShadow: 1,
+        backgroundColor: theme.palette.background.paper,
+        borderRadius: 1,
+        boxShadow: theme.shadows[1],
         cursor: "pointer",
-        "&:hover": { boxShadow: 4 },
-        opacity: isOverdue ? 0.7 : 1,
-        borderLeft: isOverdue ? "4px solid red" : "4px solid transparent",
+        transition: "all 0.2s ease",
+        "&:hover": { 
+          boxShadow: theme.shadows[4],
+          transform: "translateY(-2px)",
+        },
+        borderLeft: isOverdue 
+          ? `4px solid ${theme.palette.error.main}`
+          : `4px solid ${theme.palette.success.main}`,
       }}
       onClick={onClick}
     >
-      <Typography variant="subtitle1" fontWeight="bold">
-        {tarea.titulo}
-      </Typography>
-      <Typography variant="body2" color="text.secondary" noWrap>
+      <Stack direction="row" justifyContent="space-between" spacing={1}>
+        <Typography 
+          variant="subtitle2" 
+          fontWeight={600}
+          sx={{
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            display: "-webkit-box",
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: "vertical",
+          }}
+        >
+          {tarea.titulo}
+        </Typography>
+        <MoreHorizIcon fontSize="small" color="action" />
+      </Stack>
+      
+      <Typography 
+        variant="body2" 
+        color="text.secondary" 
+        sx={{ 
+          mt: 0.5,
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          display: "-webkit-box",
+          WebkitLineClamp: 2,
+          WebkitBoxOrient: "vertical",
+        }}
+      >
         {tarea.descripcion}
       </Typography>
-      {dueDate && (
-        <Typography
-          variant="caption"
-          sx={{ mt: 1, display: "block", color: isOverdue ? "red" : "inherit" }}
-        >
-          {dueDate.toLocaleDateString("es-MX", {
-            day: "numeric",
-            month: "short",
-            year: "numeric",
-          })}
-          {isOverdue && " • Atrasada"}
-        </Typography>
-      )}
+      
       {(tarea.etiquetas ?? []).length > 0 && (
-        <Box sx={{ mt: 1, display: "flex", gap: 0.5, flexWrap: "wrap" }}>
+        <Box sx={{ mt: 1.5, display: "flex", gap: 0.5, flexWrap: "wrap" }}>
           {(tarea.etiquetas ?? []).map((etiqueta) => (
             <Chip
               key={etiqueta}
               label={etiqueta}
               size="small"
               sx={{
-                fontSize: '0.65rem',
+                fontSize: '0.6rem',
                 height: 20,
                 backgroundColor: getTagColor(etiqueta),
-                color: 'white'
+                color: 'white',
+                borderRadius: 1,
               }}
             />
           ))}
+        </Box>
+      )}
+      
+      {dueDate && (
+        <Box sx={{ mt: 1.5, display: "flex", alignItems: "center" }}>
+          <Typography
+            variant="caption"
+            sx={{ 
+              color: isOverdue ? theme.palette.error.main : theme.palette.text.secondary,
+              fontWeight: isOverdue ? 600 : 400,
+            }}
+          >
+            {dueDate.toLocaleDateString("es-MX", {
+              day: "numeric",
+              month: "short",
+            })}
+            {isOverdue && " • Atrasada"}
+          </Typography>
         </Box>
       )}
     </Box>
@@ -396,7 +485,14 @@ function getTagColor(tag: string): string {
     "Cancelado": "#f44336",
     "Confirmado": "#4caf50",
     "Sin confirmar": "#ff9800",
-    "S/Pendientes": "#cddc39"
+    "S/Pendientes": "#cddc39",
+    "Pagado": "#7cb342",
+    "No pagado": "#e53935",
+    "Precio alto": "#ef5350",
+    "Maquina revendida": "#6d4c41",
+    "No contestó": "#9e9e9e",
+    "No usa la maquina": "#bdbdbd",
+    "Inconforme": "#c62828",
   };
   return tagColors[tag] || "#9e9e9e";
 }

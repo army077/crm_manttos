@@ -1,5 +1,12 @@
 // src/types.ts
-export type Etapa = "INBOX" | "NEGOCIACION" | "APARTADO" | "PAGADO" | "FINALIZADO";
+export type Etapa =
+  | "INBOX"
+  | "NEGOCIACION"
+  | "APARTADO"
+  | "PAGADO"
+  | "FINALIZADO"
+  | "STANDBY"
+  | "DESCARTADO";
 
 export interface Tarea {
   id: number;
